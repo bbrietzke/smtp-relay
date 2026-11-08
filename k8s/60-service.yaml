@@ -1,0 +1,18 @@
+# In-cluster access only: smtp-relay.smtp-relay.svc:587 (STARTTLS) or :465 (implicit TLS).
+# No LoadBalancer/NodePort: nothing outside the cluster can reach the relay.
+apiVersion: v1
+kind: Service
+metadata:
+  name: smtp-relay
+  namespace: smtp-relay
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: smtp-relay
+  ports:
+    - name: submission
+      port: 587
+      targetPort: submission
+    - name: submissions
+      port: 465
+      targetPort: submissions

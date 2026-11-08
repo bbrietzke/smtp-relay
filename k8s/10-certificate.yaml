@@ -1,0 +1,65 @@
+# Server certificate presented to in-cluster clients on 587/465.
+#
+# The relay is only reachable inside the cluster (ClusterIP), so clients connect to
+# smtp-relay.smtp-relay.svc. Public CAs (Let's Encrypt) can't issue for *.svc names,
+# so cert-manager runs a small private CA in this namespace:
+#   smtp-relay-selfsigned (Issuer) -> smtp-relay-ca (CA cert, 10y) -> smtp-relay-ca (Issuer) -> smtp-relay-tls
+#
+# Clients that verify TLS must trust the CA. Its certificate is the `ca.crt` key of the
+# smtp-relay-ca secret (`kubectl -n smtp-relay get secret smtp-relay-ca -o jsonpath='{.data.ca\.crt}' | base64 -d`).
+# The CA is long-lived and not rotated, so a copy handed to clients keeps working
+# when the server certificate below renews.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: smtp-relay-selfsigned
+  namespace: smtp-relay
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: smtp-relay-ca
+  namespace: smtp-relay
+spec:
+  isCA: true
+  commonName: smtp-relay-ca
+  secretName: smtp-relay-ca
+  duration: 87600h     # 10y
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Never   # keep the same CA key so clients' trusted copy stays valid
+  issuerRef:
+    kind: Issuer
+    name: smtp-relay-selfsigned
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: smtp-relay-ca
+  namespace: smtp-relay
+spec:
+  ca:
+    secretName: smtp-relay-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: smtp-relay-tls
+  namespace: smtp-relay
+spec:
+  secretName: smtp-relay-tls
+  duration: 2160h      # 90d
+  renewBefore: 360h    # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  dnsNames:
+    - smtp-relay.smtp-relay.svc
+    - smtp-relay.smtp-relay.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: smtp-relay-ca

@@ -1,0 +1,13 @@
+# Persistent mail queue so deferred messages survive pod restarts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: smtp-relay-spool
+  namespace: smtp-relay
+spec:
+  accessModes: ["ReadWriteOnce"]
+  # CHANGE: set this if the cluster has no default StorageClass, or the PVC stays Pending
+  storageClassName: rook-ceph-ssd
+  resources:
+    requests:
+      storage: 2Gi

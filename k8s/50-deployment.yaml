@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smtp-relay
+  namespace: smtp-relay
+  labels:
+    app.kubernetes.io/name: smtp-relay
+spec:
+  replicas: 1                 # single replica: the queue lives on an RWO volume
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: smtp-relay
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: smtp-relay
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postfix
+          image: docker.io/bbrietzke/smtp-relay:1.0.0   # CHANGE: the tag you built and pushed
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: smtp-relay-config
+            - secretRef:
+                name: smtp-relay-upstream
+          ports:
+            - name: submission
+              containerPort: 587
+            - name: submissions
+              containerPort: 465
+          volumeMounts:
+            - name: tls
+              # Outside /etc/postfix: `postfix check` rejects kubelet's secret-volume layout there.
+              mountPath: /run/secrets/smtp-tls
+              readOnly: true
+            - name: users
+              mountPath: /run/secrets/smtp-users
+              readOnly: true
+            - name: spool
+              mountPath: /var/spool/postfix
+          readinessProbe:
+            # Checks that the listener is up without opening an SMTP session
+            # (a tcpSocket probe would log connect/lost-connection every period).
+            exec:
+              command: ["sh", "-c", "netstat -ltn | grep -q ':587 '"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              # Is the master process alive? (`postfix status` works too but logs a line every probe.)
+              command: ["sh", "-c", "kill -0 $(cat /var/spool/postfix/pid/master.pid)"]
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            # Postfix's master process must start as root and drops privileges itself.
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL"]
+      volumes:
+        - name: tls
+          secret:
+            secretName: smtp-relay-tls
+            defaultMode: 0400   # private key readable by root only; smtpd loads it before dropping privileges
+        - name: users
+          secret:
+            secretName: smtp-relay-users
+            defaultMode: 0400
+        - name: spool
+          persistentVolumeClaim:
+            claimName: smtp-relay-spool

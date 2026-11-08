@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smtp-relay-config
+  namespace: smtp-relay
+data:
+  RELAY_HOST: "email-smtp.us-east-2.amazonaws.com"   # CHANGE: SES SMTP endpoint for YOUR region
+  RELAY_PORT: "587"                    # 587 = STARTTLS upstream
+  RELAY_TLS_WRAPPER: "no"              # "yes" if RELAY_PORT is 465 (implicit TLS)
+  MAIL_HOSTNAME: "smtp-relay.faultycloud.xyz"   # name used in the banner/HELO; SES does not check it
+  SASL_REALM: "faultycloud.xyz"       # realm for client usernames without "@"
+  MYNETWORKS: "127.0.0.0/8"            # unauthenticated relay allowed only from here; keep tight
+  MESSAGE_SIZE_LIMIT: "26214400"       # 25 MiB
+  TZ: "America/Chicago"

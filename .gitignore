@@ -1,0 +1,14 @@
+# Never commit real credentials. The README builds these outside the repo; this is a backstop.
+users.txt
+*-users.txt
+*.pw
+*.key
+*.crt
+*.pem
+.env
+k8s/20-secrets.yaml
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

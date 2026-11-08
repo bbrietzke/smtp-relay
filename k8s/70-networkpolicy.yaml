@@ -1,0 +1,42 @@
+# Ingress: only 587/465, and only from pods in this cluster (any namespace).
+# To restrict to specific namespaces, add a matchLabels to the namespaceSelector,
+# e.g. kubernetes.io/metadata.name: monitoring.
+# Egress: DNS + the upstream smarthost port on public IPs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: smtp-relay
+  namespace: smtp-relay
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: smtp-relay
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - port: 587
+          protocol: TCP
+        - port: 465
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+      ports:
+        - port: 587
+          protocol: TCP
+        - port: 465
+          protocol: TCP
